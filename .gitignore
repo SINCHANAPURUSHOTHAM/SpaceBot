@@ -1,0 +1,16 @@
+.env
+astronomy-2e.pdf
+*.pdf
+ragenv/
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.streamlit/secrets.toml
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
