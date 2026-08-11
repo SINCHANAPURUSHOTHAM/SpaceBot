@@ -1,5 +1,6 @@
 streamlit
 anthropic
+google-genai
 python-dotenv
 pdfplumber
 chromadb
