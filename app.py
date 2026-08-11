@@ -128,31 +128,36 @@ TOPICS = {
 }
 
 
-@st.cache_data
 def get_topic_background_css(topic_key):
     """
     Returns (css_value, matched_path_or_None) for a topic.
     Checks assets/<topic>.<ext> for several common formats, case-insensitively,
     so filename casing or format choice doesn't silently break the background.
     Falls back to the topic's themed gradient if no image is found.
+    No caching here on purpose — this runs once per rerun and reads a small
+    file, and caching was one of the suspects for stale UI state.
     """
     topic = TOPICS[topic_key]
     if os.path.isdir(ASSET_DIR):
-        # Case-insensitive, multi-format match against whatever is actually on disk
         wanted_name = topic["asset"].lower()
         for filename in os.listdir(ASSET_DIR):
             name, ext = os.path.splitext(filename)
             ext = ext.lower().lstrip(".")
             if name.lower() == wanted_name and ext in ("jpg", "jpeg", "png", "webp"):
                 path = os.path.join(ASSET_DIR, filename)
-                with open(path, "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode()
-                mime = "jpeg" if ext in ("jpg", "jpeg") else ext
-                css = (
-                    f"linear-gradient(180deg, rgba(10,14,26,0.75) 0%, rgba(10,14,26,0.92) 100%), "
-                    f"url(data:image/{mime};base64,{encoded})"
-                )
-                return css, path
+                try:
+                    with open(path, "rb") as f:
+                        encoded = base64.b64encode(f.read()).decode()
+                    mime = "jpeg" if ext in ("jpg", "jpeg") else ext
+                    css = (
+                        f"linear-gradient(180deg, rgba(10,14,26,0.75) 0%, rgba(10,14,26,0.92) 100%), "
+                        f"url(data:image/{mime};base64,{encoded})"
+                    )
+                    return css, path
+                except Exception:
+                    # If the file exists but can't be read/encoded, don't crash the
+                    # whole app — just fall through to the gradient fallback.
+                    pass
     return topic["fallback_gradient"], None
 
 
@@ -218,6 +223,9 @@ st.markdown(
     section[data-testid="stSidebar"] {{
         background-color: var(--panel);
         border-right: 1px solid var(--panel-line);
+        min-width: 300px !important;
+        visibility: visible !important;
+        display: block !important;
     }}
     .eyebrow {{
         font-family: 'IBM Plex Mono', monospace;
@@ -344,6 +352,7 @@ st.markdown(
 # ---------------------------------------------------------------------------
 st.sidebar.markdown("<div class='eyebrow'>SYS.CONFIG</div>", unsafe_allow_html=True)
 st.sidebar.markdown("### 🛠️ Configuration")
+st.sidebar.caption("🟢 Build v2 — if you can read this, the latest code is live.")
 
 env_key = os.getenv("GEMINI_API_KEY", "")
 api_key = st.sidebar.text_input(
@@ -501,3 +510,4 @@ if prompt:
                 })
             except Exception as e:
                 message_placeholder.error(f"**An error occurred**: {e}")
+                
