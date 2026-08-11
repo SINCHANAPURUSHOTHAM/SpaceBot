@@ -131,25 +131,29 @@ TOPICS = {
 @st.cache_data
 def get_topic_background_css(topic_key):
     """
-    Returns a CSS background-image declaration for a topic.
-    If a real image exists in assets/<topic>.jpg or .png, it's base64-embedded
-    and used directly. Otherwise falls back to the topic's themed gradient
-    layered under the starfield, so the app looks complete before real
-    images are added.
+    Returns (css_value, matched_path_or_None) for a topic.
+    Checks assets/<topic>.<ext> for several common formats, case-insensitively,
+    so filename casing or format choice doesn't silently break the background.
+    Falls back to the topic's themed gradient if no image is found.
     """
     topic = TOPICS[topic_key]
-    for ext in ("jpg", "jpeg", "png"):
-        path = os.path.join(ASSET_DIR, f"{topic['asset']}.{ext}")
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                encoded = base64.b64encode(f.read()).decode()
-            mime = "jpeg" if ext in ("jpg", "jpeg") else "png"
-            # Dark overlay gradient on top of the real photo keeps text readable
-            return (
-                f"linear-gradient(180deg, rgba(10,14,26,0.75) 0%, rgba(10,14,26,0.92) 100%), "
-                f"url(data:image/{mime};base64,{encoded})"
-            )
-    return topic["fallback_gradient"]
+    if os.path.isdir(ASSET_DIR):
+        # Case-insensitive, multi-format match against whatever is actually on disk
+        wanted_name = topic["asset"].lower()
+        for filename in os.listdir(ASSET_DIR):
+            name, ext = os.path.splitext(filename)
+            ext = ext.lower().lstrip(".")
+            if name.lower() == wanted_name and ext in ("jpg", "jpeg", "png", "webp"):
+                path = os.path.join(ASSET_DIR, filename)
+                with open(path, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode()
+                mime = "jpeg" if ext in ("jpg", "jpeg") else ext
+                css = (
+                    f"linear-gradient(180deg, rgba(10,14,26,0.75) 0%, rgba(10,14,26,0.92) 100%), "
+                    f"url(data:image/{mime};base64,{encoded})"
+                )
+                return css, path
+    return topic["fallback_gradient"], None
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +167,7 @@ if "selected_topic" not in st.session_state:
     st.session_state.selected_topic = "home"
 
 current_topic = TOPICS[st.session_state.selected_topic]
-background_css = get_topic_background_css(st.session_state.selected_topic)
+background_css, matched_asset_path = get_topic_background_css(st.session_state.selected_topic)
 
 # ---------------------------------------------------------------------------
 # Design system
@@ -387,6 +391,22 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🧹 Clear Chat History", use_container_width=True):
     st.session_state.messages = []
     st.rerun()
+
+# ---------------------------------------------------------------------------
+# Diagnostic — shows exactly which background source is active, so mismatched
+# filenames/formats are visible instead of silently falling back.
+# ---------------------------------------------------------------------------
+st.sidebar.markdown("---")
+st.sidebar.markdown("<div class='eyebrow'>BG.STATUS</div>", unsafe_allow_html=True)
+if matched_asset_path:
+    st.sidebar.caption(f"✅ Using image: `{matched_asset_path}`")
+else:
+    st.sidebar.caption(f"⚪ No image found for `{current_topic['asset']}` — using gradient fallback.")
+    if os.path.isdir(ASSET_DIR):
+        found_files = os.listdir(ASSET_DIR)
+        st.sidebar.caption(f"Files in assets/: {found_files if found_files else '(empty)'}")
+    else:
+        st.sidebar.caption("assets/ folder not found at all.")
 
 # ---------------------------------------------------------------------------
 # Hero
