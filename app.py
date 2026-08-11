@@ -350,30 +350,19 @@ st.markdown(
 # ---------------------------------------------------------------------------
 # Sidebar — "Mission Control"
 # ---------------------------------------------------------------------------
-st.sidebar.markdown("<div class='eyebrow'>SYS.CONFIG</div>", unsafe_allow_html=True)
-st.sidebar.markdown("### 🛠️ Configuration")
-st.sidebar.caption("🟢 Build v2 — if you can read this, the latest code is live.")
-
+# Load the key silently from environment/secrets first — needed before the
+# topic buttons since answering a question requires it either way.
 env_key = os.getenv("GEMINI_API_KEY", "")
-api_key = st.sidebar.text_input(
-    "Gemini API Key",
-    type="password",
-    value=env_key,
-    placeholder="Paste your Gemini API key here",
-    help="Free tier key from aistudio.google.com/apikey. Loaded from .env if available."
-)
+api_key = env_key
 
-if api_key:
-    masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "Loaded"
-    st.sidebar.markdown(
-        f"<div class='status-badge status-active'>KEY ACTIVE ({masked_key})</div>",
-        unsafe_allow_html=True
-    )
-else:
-    st.sidebar.markdown(
-        "<div class='status-badge status-inactive'>NO API KEY FOUND</div>",
-        unsafe_allow_html=True
-    )
+st.sidebar.markdown("<div class='eyebrow'>TOPIC.SELECT</div>", unsafe_allow_html=True)
+st.sidebar.markdown("### 🧭 Browse by Topic")
+
+for topic_key, topic in TOPICS.items():
+    if st.sidebar.button(topic["label"], use_container_width=True, key=f"topic_{topic_key}"):
+        st.session_state.selected_topic = topic_key
+        st.session_state.queued_prompt = None
+        st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div class='eyebrow'>MODEL.PARAMS</div>", unsafe_allow_html=True)
@@ -387,35 +376,32 @@ with st.sidebar.expander("⚙️ Advanced Parameters"):
                        help="How many book excerpts to pull in per question.")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("<div class='eyebrow'>TOPIC.SELECT</div>", unsafe_allow_html=True)
-st.sidebar.markdown("### 🧭 Browse by Topic")
-
-for topic_key, topic in TOPICS.items():
-    if st.sidebar.button(topic["label"], use_container_width=True, key=f"topic_{topic_key}"):
-        st.session_state.selected_topic = topic_key
-        st.session_state.queued_prompt = None
-        st.rerun()
-
-st.sidebar.markdown("---")
 if st.sidebar.button("🧹 Clear Chat History", use_container_width=True):
     st.session_state.messages = []
     st.rerun()
 
-# ---------------------------------------------------------------------------
-# Diagnostic — shows exactly which background source is active, so mismatched
-# filenames/formats are visible instead of silently falling back.
-# ---------------------------------------------------------------------------
-st.sidebar.markdown("---")
-st.sidebar.markdown("<div class='eyebrow'>BG.STATUS</div>", unsafe_allow_html=True)
-if matched_asset_path:
-    st.sidebar.caption(f"✅ Using image: `{matched_asset_path}`")
-else:
-    st.sidebar.caption(f"⚪ No image found for `{current_topic['asset']}` — using gradient fallback.")
-    if os.path.isdir(ASSET_DIR):
-        found_files = os.listdir(ASSET_DIR)
-        st.sidebar.caption(f"Files in assets/: {found_files if found_files else '(empty)'}")
+# API key config tucked away — only needed if the deployed secret is missing
+# or someone wants to override it with their own key for local testing.
+with st.sidebar.expander("🔑 API Key Settings"):
+    manual_key = st.text_input(
+        "Gemini API Key",
+        type="password",
+        value=env_key,
+        placeholder="Paste your Gemini API key here",
+        help="Free tier key from aistudio.google.com/apikey. Auto-loaded from secrets if configured."
+    )
+    if manual_key:
+        api_key = manual_key
+        masked_key = manual_key[:8] + "..." + manual_key[-4:] if len(manual_key) > 12 else "Loaded"
+        st.markdown(
+            f"<div class='status-badge status-active'>KEY ACTIVE ({masked_key})</div>",
+            unsafe_allow_html=True
+        )
     else:
-        st.sidebar.caption("assets/ folder not found at all.")
+        st.markdown(
+            "<div class='status-badge status-inactive'>NO API KEY FOUND</div>",
+            unsafe_allow_html=True
+        )
 
 # ---------------------------------------------------------------------------
 # Hero
@@ -510,4 +496,3 @@ if prompt:
                 })
             except Exception as e:
                 message_placeholder.error(f"**An error occurred**: {e}")
-                
